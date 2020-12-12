@@ -1,1 +1,5 @@
-module "image_catalog"
+module image_catalog
+
+go 1.15
+
+require github.com/google/uuid v1.1.2
