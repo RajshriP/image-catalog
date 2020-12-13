@@ -2,16 +2,18 @@ package api
 
 import (
 	"encoding/json"
+	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 	"net/http"
 )
 
 type Store struct {
-	DB *gorm.DB
+	db  *gorm.DB
+	log *logrus.Logger
 }
 
-func New(db *gorm.DB) *Store {
-	s := &Store{DB: db}
+func New(db *gorm.DB, log *logrus.Logger) *Store {
+	s := &Store{db: db, log: log}
 	http.HandleFunc("/api/upload/", s.Upload)
 	http.Handle("/images/", http.FileServer(http.Dir(".")))
 	return s

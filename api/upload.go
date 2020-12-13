@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 	"image_catalog/db"
 	"io/ioutil"
 	"net/http"
@@ -12,22 +13,31 @@ import (
 )
 
 func (s *Store) Upload(w http.ResponseWriter, r *http.Request) {
-	jw := json.NewEncoder(w)
+	type response struct {
+		ID  uint   `json:"id"`
+		Url string `json:"url"`
+	}
+
+	log := s.log.WithField("api", "upload")
+
 	w.Header().Add("Content-Type", "application/json")
 
 	if r.Method != "POST" {
+		log.Debug(r.Method + " request received")
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		_ = errMessage(w, r.Method+" method not allowed")
 		return
 	}
 	err := r.ParseMultipartForm(5 * 1024 * 1024)
 	if err != nil {
+		log.WithField("error", err).Info("invalid request body")
 		w.WriteHeader(http.StatusBadRequest)
 		_ = errMessage(w, "Invalid request body: "+err.Error())
 		return
 	}
 	fileHeaders, ok := r.MultipartForm.File["image"]
 	if !ok || len(fileHeaders) == 0 {
+		log.WithField("error", err).Info("invalid request body")
 		w.WriteHeader(http.StatusBadRequest)
 		_ = errMessage(w, "Invalid request body: image is required")
 		return
@@ -35,6 +45,7 @@ func (s *Store) Upload(w http.ResponseWriter, r *http.Request) {
 	fileHeader := fileHeaders[0]
 	img, err := fileHeader.Open()
 	if err != nil {
+		log.WithField("error", err).Error("read image error")
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = errMessage(w, "Error while reading image")
 		return
@@ -44,6 +55,7 @@ func (s *Store) Upload(w http.ResponseWriter, r *http.Request) {
 	fp := path.Join("images", fileName)
 	file, err := os.Create(fp)
 	if err != nil {
+		log.WithField("error", err).Error("create file error")
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = errMessage(w, "Error while storing image")
 		return
@@ -51,30 +63,31 @@ func (s *Store) Upload(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 	bytes, err := ioutil.ReadAll(img)
 	if err != nil {
+		log.WithField("error", err).Error("read file error")
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = errMessage(w, "Error while reading image")
 		return
 	}
 	_, err = file.Write(bytes)
 	if err != nil {
+		log.WithField("error", err).Error("write to file error")
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = errMessage(w, "Error while storing image")
 		defer os.Remove(fp) // Should be called after file.Close()
 		return
 	}
 	image := db.Image{Path: fp}
-	result := s.DB.Create(&image)
+	result := s.db.Create(&image)
 	if result.Error != nil {
+		log.WithField("error", err).Error("db insert error")
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = errMessage(w, "Error while updating database")
 		defer os.Remove(fp) // Should be called after file.Close()
 		return
 	}
-	type response struct {
-		ID  uint   `json:"id"`
-		Url string `json:"url"`
-	}
+	log.WithFields(logrus.Fields{"path": fp, "id": image.ID}).Info("file uploaded")
+
 	w.Header().Add("Content-Type", "application/json")
 	out := response{ID: image.ID, Url: "/" + image.Path}
-	_ = jw.Encode(out)
+	_ = json.NewEncoder(w).Encode(out)
 }
