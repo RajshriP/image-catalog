@@ -13,11 +13,6 @@ import (
 )
 
 func (s *Store) Upload(w http.ResponseWriter, r *http.Request) {
-	type response struct {
-		ID  uint   `json:"id"`
-		Url string `json:"url"`
-	}
-
 	log := s.log.WithField("api", "upload")
 
 	w.Header().Add("Content-Type", "application/json")
@@ -89,7 +84,5 @@ func (s *Store) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.WithFields(logrus.Fields{"path": image.Path, "id": image.ID}).Info("file uploaded")
-
-	out := response{ID: image.ID, Url: image.Path}
-	_ = json.NewEncoder(w).Encode(out)
+	_ = json.NewEncoder(w).Encode(image)
 }
