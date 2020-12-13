@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-func (s Store) Upload(w http.ResponseWriter, r *http.Request) {
+func (s *Store) Upload(w http.ResponseWriter, r *http.Request) {
 	jw := json.NewEncoder(w)
 	w.Header().Add("Content-Type", "application/json")
 
