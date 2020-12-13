@@ -2,6 +2,8 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"gorm.io/gorm"
 	"image_catalog/db"
 	"math"
@@ -22,8 +24,7 @@ func (s *Store) Images(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
 	if err != nil {
 		log.WithField("error", err).Error("parse form error")
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = errMessage(w, "Error processing the request")
+		_ = errMessage(w, http.StatusInternalServerError, "Error processing the request")
 		return
 	}
 	pageNo, err := strconv.Atoi(r.FormValue("page_no"))
@@ -37,8 +38,7 @@ func (s *Store) Images(w http.ResponseWriter, r *http.Request) {
 	images, err := getPaginatedImages(s.db, pageNo, perPage)
 	if err != nil {
 		log.WithField("error", err).Error("fetch images error")
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = errMessage(w, "Error while fetching images from the database")
+		_ = errMessage(w, http.StatusInternalServerError, "Error while fetching images from the database")
 		return
 	}
 	_ = json.NewEncoder(w).Encode(images)
@@ -58,4 +58,29 @@ func getPaginatedImages(gormDB *gorm.DB, pageNo, perPage int) (paginatedImages, 
 	result = gormDB.Model(&db.Image{}).Count(&count)
 	images.Pages = int(math.Ceil(float64(count) / float64(perPage)))
 	return images, result.Error
+}
+
+func (s *Store) Image(w http.ResponseWriter, r *http.Request) {
+	log := s.log.WithField("api", "image")
+	w.Header().Add("Content-Type", "application/json")
+	err := r.ParseForm()
+	if err != nil {
+		log.WithField("error", err).Warn("Parse form error")
+		_ = errMessage(w, http.StatusBadRequest, "Parse form error")
+		return
+	}
+	id := r.FormValue("id")
+	image := db.Image{}
+	err = s.db.First(&image, id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		log.WithField("id", id).Info("Image not found")
+		_ = errMessage(w, http.StatusNotFound, fmt.Sprintf("Image not found for id=%s", id))
+		return
+	}
+	if err != nil {
+		log.WithField("error", err).Error("Error while fetching Image")
+		_ = errMessage(w, http.StatusInternalServerError, "Error while fetching Image")
+		return
+	}
+	_ = json.NewEncoder(w).Encode(image)
 }
