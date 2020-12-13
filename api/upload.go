@@ -51,8 +51,11 @@ func (s *Store) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer img.Close()
-	fileName := uuid.New().String() + strings.ToLower(path.Ext(fileHeader.Filename))
-	fp := path.Join("images", fileName)
+
+	ext := strings.ToLower(path.Ext(fileHeader.Filename))
+	image := db.Image{Path: "/images/" + uuid.New().String() + ext}
+	root := "."
+	fp := root + image.Path
 	file, err := os.Create(fp)
 	if err != nil {
 		log.WithField("error", err).Error("create file error")
@@ -76,7 +79,7 @@ func (s *Store) Upload(w http.ResponseWriter, r *http.Request) {
 		defer os.Remove(fp) // Should be called after file.Close()
 		return
 	}
-	image := db.Image{Path: fp}
+
 	result := s.db.Create(&image)
 	if result.Error != nil {
 		log.WithField("error", err).Error("db insert error")
@@ -85,9 +88,8 @@ func (s *Store) Upload(w http.ResponseWriter, r *http.Request) {
 		defer os.Remove(fp) // Should be called after file.Close()
 		return
 	}
-	log.WithFields(logrus.Fields{"path": fp, "id": image.ID}).Info("file uploaded")
+	log.WithFields(logrus.Fields{"path": image.Path, "id": image.ID}).Info("file uploaded")
 
-	w.Header().Add("Content-Type", "application/json")
-	out := response{ID: image.ID, Url: "/" + image.Path}
+	out := response{ID: image.ID, Url: image.Path}
 	_ = json.NewEncoder(w).Encode(out)
 }

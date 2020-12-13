@@ -15,6 +15,7 @@ type Store struct {
 func New(db *gorm.DB, log *logrus.Logger) *Store {
 	s := &Store{db: db, log: log}
 	http.HandleFunc("/api/upload/", s.Upload)
+	http.HandleFunc("/api/images/", s.Images)
 	http.Handle("/images/", http.FileServer(http.Dir(".")))
 	return s
 }
